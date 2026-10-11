@@ -379,7 +379,7 @@ function load() {
 $("gateform").addEventListener("submit", (e) => {
   e.preventDefault(); const v = $("viewkey").value.trim(); if (!v) return;
   try { localStorage.setItem("itec-view", v); } catch (err) {}
-  $("gatemsg").textContent = "確認しています…"; load();
+  $("gatemsg").textContent = "確認しています…（しばらく使っていないと10秒ほどかかります）"; load();
 });
 const WORK = ["確認中", "先方連絡中", "面談"];
 // いま声をかける会社（ラウンド継続中・次の調達が近い）
