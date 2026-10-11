@@ -78,7 +78,7 @@ nav.tabs svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stro
 nav.tabs .n { font-family: var(--mono); font-size: 11.5px; color: var(--side-muted); }
 
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.filters input[type=search] { flex: 1 1 220px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; }
+.filters input[type=search] { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; }
 .filters select { padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; max-width: 100%; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
@@ -158,7 +158,6 @@ nav.tabs .n { font-family: var(--mono); font-size: 11.5px; color: var(--side-mut
 .selbar .msg { font-size: 12px; opacity: .8; }
 .dhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .btn.sm { padding: 5px 10px; font-size: 12.5px; white-space: nowrap; }
-.tmnote { margin: 0 0 10px; font-size: 11.5px; color: var(--muted); }
 .row .side .dt { font-size: 11.5px; }
 .fresh { font-family: var(--body); font-size: 11px; border-radius: 4px; padding: 1px 6px; background: var(--maroon-soft); color: var(--maroon); }
 .news { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: grid; gap: 6px; }
@@ -288,15 +287,14 @@ nav.tabs .n { font-family: var(--mono); font-size: 11.5px; color: var(--side-mut
   </section>
 
   <section id="view-board" hidden>
-    <div class="filters" style="margin-bottom:10px">
-      <input type="search" id="q" placeholder="会社名・事業・領域で検索" aria-label="検索">
-      <select id="f-status" aria-label="ステータス"><option value="">ステータス：すべて</option></select>
-      <select id="f-view" aria-label="絞り込み"></select>
+    <div class="filters" style="margin-bottom:12px">
+      <input type="search" id="q" placeholder="会社名・事業で検索" aria-label="検索">
+      <select id="f-grade" aria-label="判定"></select>
+      <select id="f-time" aria-label="声をかける時期"></select>
+      <select id="f-area" aria-label="アイテックの領域"></select>
+      <select id="f-status" aria-label="状況"></select>
       <span class="pickchip" id="pick" hidden></span>
     </div>
-    <div class="chips" id="timings" style="margin-bottom:4px" aria-label="声をかける時期"></div>
-    <p class="tmnote">ラウンド継続中＝発表から4ヶ月以内　次の調達が近い＝前回から約1〜2年（検討期間ぶん早め）　調達直後＝1年以内（提携から）</p>
-    <div class="chips" id="areas" style="margin-bottom:12px" aria-label="アイテックの領域"></div>
     <div class="board">
       <div class="list">
         <div class="meta"><label class="selall" title="表示中の会社をまとめて選ぶ"><input type="checkbox" id="selall"><span id="count"></span></label><span class="metar"><span>時期→判定→調達日の順</span><button class="link" id="xls-list">この一覧をExcelに</button></span></div>
@@ -319,7 +317,7 @@ const AREAS = [
   ["会員・EC・集客", /Web|会員|EC|デジタルマーケ|流通|インバウンド|エンタメ/], ["コールセンター", /コールセンター|顧客管理/],
   ["インフラ・セキュリティ", /ITインフラ|セキュリティ|IoT/], ["業務DX・生成AI", /生産性|企業DX|生成AI|電力|先端/]
 ];
-const S = { tab: "dash", pick: null, view: "", q: "", src: "", status: "", areas: new Set(), timings: new Set(), sel: null };
+const S = { tab: "dash", pick: null, q: "", grade: "", time: "", area: "", status: "", sel: null };
 // 声かけの時期（前回の調達日とラウンドから計算）。表示は短く、意味は title と凡例で補う
 const TIMINGS = [["ラウンド継続中", "tm-now", "1stクローズ・追加調達などの発表から4ヶ月以内。検討期間（1〜2ヶ月）を見込んでもまだ間に合う"],
   ["次の調達が近い", "tm-next", "次のラウンドまでの標準的な期間の2ヶ月前から（シード・プレA 10〜22ヶ月／A 14〜26ヶ月／B・C 12〜25ヶ月）。アイテックの検討期間1〜2ヶ月を見込んだ"],
@@ -412,54 +410,52 @@ $("fire").addEventListener("click", () => {
 });
 $("reload").addEventListener("click", load);
 
-TIMINGS.forEach(([n, c, tip]) => $("timings").insertAdjacentHTML("beforeend", `<button class="chip" aria-pressed="false" data-tm="${n}" title="${tip}">${n}</button>`));
-$("timings").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (!b) return; const n = b.dataset.tm;
-  S.timings.has(n) ? S.timings.delete(n) : S.timings.add(n); b.setAttribute("aria-pressed", S.timings.has(n)); render(); });
-AREAS.forEach(([n]) => $("areas").insertAdjacentHTML("beforeend", `<button class="chip" aria-pressed="false" data-area="${n}">${n}</button>`));
-STATUSES.forEach((s) => $("f-status").insertAdjacentHTML("beforeend", `<option>${s}</option>`));
-$("areas").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (!b) return; const n = b.dataset.area;
-  S.areas.has(n) ? S.areas.delete(n) : S.areas.add(n); b.setAttribute("aria-pressed", S.areas.has(n)); render(); });
 $("q").addEventListener("input", (e) => { S.q = e.target.value.trim(); render(); });
-$("f-status").addEventListener("change", (e) => { S.status = e.target.value; render(); });
-// 件数カードと同じ条件で絞る（検索欄の横の「絞り込み」でも選べる）
-const VIEWS = [
-  ["", "絞り込み：なし", () => true],
-  ["nowg1", "いま声をかける ◎", (r) => r.grade === "◎" && isNow(r)],
-  ["nowg2", "いま声をかける ○", (r) => r.grade === "○" && isNow(r)],
-  ["now", "いま声をかける（◎○）", (r) => isNow(r)],
-  ["g1", "◎ 既存事業に直結", (r) => r.grade === "◎"],
-  ["g2", "○ 中計の方向に合う", (r) => r.grade === "○"],
-  ["work", "対応中", (r) => WORK.includes(r.status)],
-  ["fresh", "今回の新着・更新", (r) => !!freshOf(r, latestAdded())],
-];
-$("f-view").innerHTML = VIEWS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
-$("f-view").addEventListener("change", (e) => { S.view = e.target.value; render(); markStats(); });
+// 絞り込み：判定・時期・領域・状況のプルダウン（件数カードを押すとここが切り替わる）
+const OPT = {
+  grade: (tab) => [["", "判定：すべて"], ...(tab === "cand" ? [] : [["cand", "◎・○"]]), ["◎", "◎ 既存事業に直結"], ["○", "○ 中計の方向に合う"], ...(tab === "cand" ? [] : [["none", "判定なし"]])],
+  time: () => [["", "時期：すべて"], ["now", "いま声をかける（継続中・近い）"], ["ラウンド継続中", "ラウンド継続中（発表から4ヶ月以内）"],
+    ["次の調達が近い", "次の調達が近い（前回から約1〜2年）"], ["調達直後", "調達直後（1年以内・提携から）"], ["時期未定", "時期未定"]],
+  area: () => [["", "領域：すべて"], ...AREAS.map(([n]) => [n, n])],
+  status: () => [["", "状況：すべて"], ["work", "対応中（確認中・連絡中・面談）"], ...STATUSES.map((x) => [x, x]), ["fresh", "今回の新着・更新"]],
+};
+function fillSelects() {
+  [["f-grade", "grade"], ["f-time", "time"], ["f-area", "area"], ["f-status", "status"]].forEach(([id, k]) => {
+    const opts = OPT[k](S.tab); if (!opts.some(([v]) => v === S[k])) S[k] = "";
+    $(id).innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); $(id).value = S[k];
+  });
+}
+[["f-grade", "grade"], ["f-time", "time"], ["f-area", "area"], ["f-status", "status"]].forEach(([id, k]) =>
+  $(id).addEventListener("change", (e) => { S[k] = e.target.value; render(); markStats(); }));
+const resetFilters = () => { S.grade = S.time = S.area = S.status = ""; };
 const PAGES = { dash: ["ダッシュボード", "誰に・いつ声をかけるか"],
   cand: ["アイテック候補", "アイテックの基準で◎・○を付けた会社"],
   all: ["全件（広め）", "集めた資金調達の発表すべて（判定なしを含む）"],
   sel: ["選んだ会社", "チェックを付けた会社。Excelに出力できます（選択はこのブラウザに保存）"] };
 function markStats() {
   document.querySelectorAll(".stat[data-go]").forEach((b) => { const g = b.dataset.go;
-    const on = S.tab !== "dash" && !S.pick && ((g === "all" && S.tab === "all" && !S.view) || (g === "cand" && S.tab === "cand" && !S.view) || (g !== "all" && g !== "cand" && S.view === g));
+    const on = S.tab !== "dash" && !S.pick && !S.area && ((g === "nowg1" && S.grade === "◎" && S.time === "now" && !S.status) || (g === "nowg2" && S.grade === "○" && S.time === "now" && !S.status)
+      || (g === "work" && S.status === "work" && !S.grade && !S.time) || (g === "fresh" && S.status === "fresh" && !S.grade && !S.time));
     b.setAttribute("aria-pressed", on); });
 }
 function switchTab(tab, keepSel) {
   S.tab = tab; document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === tab));
   $("view-dash").hidden = tab !== "dash"; $("view-board").hidden = tab === "dash";
-  $("areas").hidden = tab !== "cand"; if (!keepSel) S.sel = null;
+  if (!keepSel) S.sel = null;
   $("page-title").textContent = PAGES[tab][0]; $("page-sub").textContent = PAGES[tab][1];
-  $("f-view").value = S.view;
+  fillSelects();
   if (tab === "dash") dash(); else render();
   markStats(); updSel();
 }
-document.querySelector("nav.tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (!b) return; S.pick = null; S.view = ""; switchTab(b.dataset.tab); });
+document.querySelector("nav.tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (!b) return; S.pick = null; resetFilters(); switchTab(b.dataset.tab); });
 // ダッシュボードから一覧へ：選んだ会社だけに絞って候補（または全件）のタブを開く
-function pick(label, rows, tab) { S.pick = { label, urls: new Set(rows.map((r) => r.url)) }; S.view = ""; switchTab(tab || "cand"); $("view-board").scrollIntoView({ block: "start" }); }
-function openRow(r) { S.pick = null; S.view = ""; switchTab(isCand(r) ? "cand" : "all", true); S.sel = r.url; render(); $("detail").scrollIntoView({ block: "start" }); }
+function pick(label, rows, tab) { S.pick = { label, urls: new Set(rows.map((r) => r.url)) }; resetFilters(); switchTab(tab || "cand"); $("view-board").scrollIntoView({ block: "start" }); }
+function openRow(r) { S.pick = null; resetFilters(); switchTab(isCand(r) ? "cand" : "all", true); S.sel = r.url; render(); $("detail").scrollIntoView({ block: "start" }); }
 // 件数カードを押すと、その条件の一覧を開く（全件と今回の新着・更新は全件タブ、それ以外は候補タブ）
 document.querySelector(".stats").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (!b) return;
-  const go = b.dataset.go; S.pick = null;
-  S.view = go;
+  const go = b.dataset.go; S.pick = null; resetFilters();
+  if (go === "nowg1" || go === "nowg2") { S.grade = go === "nowg1" ? "◎" : "○"; S.time = "now"; }
+  else S.status = go; // work / fresh
   switchTab(go === "fresh" ? "all" : "cand");
   $("view-board").scrollIntoView({ block: "start" }); });
 $("rows").addEventListener("click", (e) => { if (e.target.closest(".selbox")) return; const b = e.target.closest(".row"); if (b) { S.sel = b.dataset.url; const y = $("rows").scrollTop; render(); $("rows").scrollTop = y; } });
@@ -467,7 +463,7 @@ $("rows").addEventListener("keydown", (e) => { const b = e.target.closest(".row"
 $("rows").addEventListener("change", (e) => { const c = e.target.closest(".selc"); if (!c) return; const u = c.closest(".row").dataset.url;
   c.checked ? SEL.add(u) : SEL.delete(u); c.closest(".row").classList.toggle("picked", c.checked); saveSel(); if (S.tab === "sel") { const y = $("rows").scrollTop; render(); $("rows").scrollTop = y; } });
 $("selall").addEventListener("change", (e) => { filtered().forEach((r) => (e.target.checked ? SEL.add(r.url) : SEL.delete(r.url))); saveSel(); const y = $("rows").scrollTop; render(); $("rows").scrollTop = y; });
-$("sel-open").addEventListener("click", () => { S.pick = null; S.view = ""; switchTab("sel"); });
+$("sel-open").addEventListener("click", () => { S.pick = null; resetFilters(); switchTab("sel"); });
 $("sel-clear").addEventListener("click", () => { SEL.clear(); saveSel(); render(); });
 $("sel-xls").addEventListener("click", () => exportXlsx(DATA.all.filter((r) => SEL.has(r.url)), "選んだ会社", $("sel-msg")));
 $("xls-list").addEventListener("click", () => exportXlsx(filtered(), S.tab === "sel" ? "選んだ会社" : S.tab === "cand" ? "候補" : "全件", $("sel-msg")));
@@ -476,11 +472,13 @@ function filtered() {
   let rows = S.tab === "cand" ? DATA.all.filter(isCand) : S.tab === "sel" ? DATA.all.filter((r) => SEL.has(r.url)) : DATA.all;
   rows = [...rows].sort((a, b) => (TM_ORDER[timingOf(a)] - TM_ORDER[timingOf(b)]) || ((a.grade === "◎" ? 0 : a.grade === "○" ? 1 : 2) - (b.grade === "◎" ? 0 : b.grade === "○" ? 1 : 2)) || b.date.localeCompare(a.date));
   if (S.pick) rows = rows.filter((r) => S.pick.urls.has(r.url));
-  if (S.timings.size) rows = rows.filter((r) => S.timings.has(timingOf(r)));
   if (S.q) { const q = S.q.toLowerCase(); rows = rows.filter((r) => [r.name, r.biz, r.area, r.idea, r.title].join(" ").toLowerCase().includes(q)); }
-  if (S.status) rows = rows.filter((r) => (r.status || "未着手") === S.status);
-  if (S.view) { const f = VIEWS.find((v) => v[0] === S.view)[2]; rows = rows.filter(f); }
-  if (S.tab === "cand" && S.areas.size) rows = rows.filter((r) => areasOf(r).some((a) => S.areas.has(a)));
+  if (S.grade === "cand") rows = rows.filter(isCand); else if (S.grade === "none") rows = rows.filter((r) => !isCand(r)); else if (S.grade) rows = rows.filter((r) => r.grade === S.grade);
+  if (S.time === "now") rows = rows.filter(isNow); else if (S.time) rows = rows.filter((r) => timingOf(r) === S.time);
+  if (S.area) rows = rows.filter((r) => areasOf(r).includes(S.area));
+  if (S.status === "work") rows = rows.filter((r) => WORK.includes(r.status));
+  else if (S.status === "fresh") { const la = latestAdded(); rows = rows.filter((r) => !!freshOf(r, la)); }
+  else if (S.status) rows = rows.filter((r) => (r.status || "未着手") === S.status);
   return rows;
 }
 function render() {
