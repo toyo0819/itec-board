@@ -80,6 +80,15 @@ nav.tabs .n { font-family: var(--mono); font-size: 11.5px; color: var(--side-mut
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .filters input[type=search] { flex: 1 1 200px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; }
 .filters select { padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; max-width: 100%; }
+.msel { position: relative; }
+.msel-btn { padding: 7px 28px 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; white-space: nowrap; position: relative; min-width: 9em; text-align: left; }
+.msel-btn::after { content: ""; position: absolute; right: 10px; top: 50%; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: translateY(-70%) rotate(45deg); }
+.msel-btn.on { border-color: var(--maroon); color: var(--maroon); font-weight: 700; }
+.msel-pop { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: min(340px, 90vw); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 6px; display: grid; gap: 2px; }
+.msel-pop label { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.msel-pop label:hover { background: var(--maroon-soft); }
+.msel-pop input { accent-color: var(--maroon); width: 15px; height: 15px; margin: 0; }
+.msel-pop .msel-clear { justify-self: start; padding: 6px 8px; font-size: 12.5px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
 .chip[aria-pressed="true"] { background: var(--maroon); border-color: var(--maroon); color: var(--panel); }
@@ -289,10 +298,10 @@ nav.tabs .n { font-family: var(--mono); font-size: 11.5px; color: var(--side-mut
   <section id="view-board" hidden>
     <div class="filters" style="margin-bottom:12px">
       <input type="search" id="q" placeholder="会社名・事業で検索" aria-label="検索">
-      <select id="f-grade" aria-label="判定"></select>
-      <select id="f-time" aria-label="声をかける時期"></select>
-      <select id="f-area" aria-label="アイテックの領域"></select>
-      <select id="f-status" aria-label="状況"></select>
+      <div class="msel" id="f-grade"></div>
+      <div class="msel" id="f-time"></div>
+      <div class="msel" id="f-area"></div>
+      <div class="msel" id="f-status"></div>
       <span class="pickchip" id="pick" hidden></span>
     </div>
     <div class="board">
@@ -317,7 +326,7 @@ const AREAS = [
   ["会員・EC・集客", /Web|会員|EC|デジタルマーケ|流通|インバウンド|エンタメ/], ["コールセンター", /コールセンター|顧客管理/],
   ["インフラ・セキュリティ", /ITインフラ|セキュリティ|IoT/], ["業務DX・生成AI", /生産性|企業DX|生成AI|電力|先端/]
 ];
-const S = { tab: "dash", pick: null, q: "", grade: "", time: "", area: "", status: "", sel: null };
+const S = { tab: "dash", pick: null, q: "", grade: new Set(), time: new Set(), area: new Set(), status: new Set(), sel: null };
 // 声かけの時期（前回の調達日とラウンドから計算）。表示は短く、意味は title と凡例で補う
 const TIMINGS = [["ラウンド継続中", "tm-now", "1stクローズ・追加調達などの発表から4ヶ月以内。検討期間（1〜2ヶ月）を見込んでもまだ間に合う"],
   ["次の調達が近い", "tm-next", "次のラウンドまでの標準的な期間の2ヶ月前から（シード・プレA 10〜22ヶ月／A 14〜26ヶ月／B・C 12〜25ヶ月）。アイテックの検討期間1〜2ヶ月を見込んだ"],
@@ -411,31 +420,59 @@ $("fire").addEventListener("click", () => {
 $("reload").addEventListener("click", load);
 
 $("q").addEventListener("input", (e) => { S.q = e.target.value.trim(); render(); });
-// 絞り込み：判定・時期・領域・状況のプルダウン（件数カードを押すとここが切り替わる）
+// 絞り込み：判定・時期・領域・状況（どれも複数選べる。同じ項目の中は「どれか」、項目どうしは「かつ」）
+const NOW_T = ["ラウンド継続中", "次の調達が近い"];
 const OPT = {
-  grade: (tab) => [["", "判定：すべて"], ...(tab === "cand" ? [] : [["cand", "◎・○"]]), ["◎", "◎ 既存事業に直結"], ["○", "○ 中計の方向に合う"], ...(tab === "cand" ? [] : [["none", "判定なし"]])],
-  time: () => [["", "時期：すべて"], ["now", "いま声をかける（継続中・近い）"], ["ラウンド継続中", "ラウンド継続中（発表から4ヶ月以内）"],
-    ["次の調達が近い", "次の調達が近い（前回から約1〜2年）"], ["調達直後", "調達直後（1年以内・提携から）"], ["時期未定", "時期未定"]],
-  area: () => [["", "領域：すべて"], ...AREAS.map(([n]) => [n, n])],
-  status: () => [["", "状況：すべて"], ["work", "対応中（確認中・連絡中・面談）"], ...STATUSES.map((x) => [x, x]), ["fresh", "今回の新着・更新"]],
+  grade: { title: "判定", opts: (tab) => [["◎", "◎ 既存事業に直結", "◎"], ["○", "○ 中計の方向に合う", "○"], ...(tab === "cand" ? [] : [["none", "判定なし", "判定なし"]])] },
+  time: { title: "時期", opts: () => [["ラウンド継続中", "ラウンド継続中（発表から4ヶ月以内）", "ラウンド継続中"],
+    ["次の調達が近い", "次の調達が近い（前回から約1〜2年）", "次の調達が近い"], ["調達直後", "調達直後（1年以内・提携から）", "調達直後"], ["時期未定", "時期未定", "時期未定"]] },
+  area: { title: "領域", opts: () => AREAS.map(([n]) => [n, n, n]) },
+  status: { title: "状況", opts: () => [...STATUSES.map((x) => [x, x, x]), ["fresh", "今回の新着・更新だけ", "今回の新着・更新"]] },
 };
+const MSEL = [["f-grade", "grade"], ["f-time", "time"], ["f-area", "area"], ["f-status", "status"]];
+function mselLabel(k) {
+  const o = OPT[k], set = S[k], opts = o.opts(S.tab).filter(([v]) => set.has(v));
+  if (!opts.length) return `${o.title}：すべて`;
+  if (k === "time" && set.size === 2 && NOW_T.every((t) => set.has(t))) return `${o.title}：いま声をかける`;
+  if (k === "status" && set.size === 3 && WORK.every((t) => set.has(t))) return `${o.title}：対応中`;
+  const names = opts.map((x) => x[2]).join("、");
+  return `${o.title}：` + (names.length > 16 ? `${opts.length}件` : names);
+}
 function fillSelects() {
-  [["f-grade", "grade"], ["f-time", "time"], ["f-area", "area"], ["f-status", "status"]].forEach(([id, k]) => {
-    const opts = OPT[k](S.tab); if (!opts.some(([v]) => v === S[k])) S[k] = "";
-    $(id).innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); $(id).value = S[k];
+  MSEL.forEach(([id, k]) => {
+    const opts = OPT[k].opts(S.tab); [...S[k]].forEach((v) => { if (!opts.some(([x]) => x === v)) S[k].delete(v); });
+    $(id).innerHTML = `<button type="button" class="msel-btn${S[k].size ? " on" : ""}" aria-haspopup="true" aria-expanded="false">${esc(mselLabel(k))}</button>
+      <div class="msel-pop" hidden>${opts.map(([v, l]) => `<label><input type="checkbox" value="${esc(v)}" ${S[k].has(v) ? "checked" : ""}>${esc(l)}</label>`).join("")}
+      <button type="button" class="link msel-clear">すべてに戻す</button></div>`;
   });
 }
-[["f-grade", "grade"], ["f-time", "time"], ["f-area", "area"], ["f-status", "status"]].forEach(([id, k]) =>
-  $(id).addEventListener("change", (e) => { S[k] = e.target.value; render(); markStats(); }));
-const resetFilters = () => { S.grade = S.time = S.area = S.status = ""; };
+function closePops(except) { document.querySelectorAll(".msel-pop").forEach((p) => { if (p !== except) { p.hidden = true; p.previousElementSibling.setAttribute("aria-expanded", "false"); } }); }
+MSEL.forEach(([id, k]) => {
+  $(id).addEventListener("click", (e) => {
+    const btn = e.target.closest(".msel-btn"), pop = $(id).querySelector(".msel-pop");
+    if (btn) { const open = pop.hidden; closePops(); pop.hidden = !open; btn.setAttribute("aria-expanded", open); return; }
+    if (e.target.closest(".msel-clear")) { S[k].clear(); fillSelects(); render(); markStats(); }
+  });
+  $(id).addEventListener("change", (e) => {
+    const c = e.target.closest("input[type=checkbox]"); if (!c) return;
+    c.checked ? S[k].add(c.value) : S[k].delete(c.value);
+    const btn = $(id).querySelector(".msel-btn"); btn.textContent = mselLabel(k); btn.classList.toggle("on", S[k].size > 0);
+    render(); markStats();
+  });
+});
+document.addEventListener("click", (e) => { if (!e.target.closest(".msel")) closePops(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePops(); });
+const resetFilters = () => { MSEL.forEach(([, k]) => S[k].clear()); };
+const sameSet = (set, arr) => set.size === arr.length && arr.every((x) => set.has(x));
 const PAGES = { dash: ["ダッシュボード", "誰に・いつ声をかけるか"],
   cand: ["アイテック候補", "アイテックの基準で◎・○を付けた会社"],
   all: ["全件（広め）", "集めた資金調達の発表すべて（判定なしを含む）"],
   sel: ["選んだ会社", "チェックを付けた会社。Excelに出力できます（選択はこのブラウザに保存）"] };
 function markStats() {
   document.querySelectorAll(".stat[data-go]").forEach((b) => { const g = b.dataset.go;
-    const on = S.tab !== "dash" && !S.pick && !S.area && ((g === "nowg1" && S.grade === "◎" && S.time === "now" && !S.status) || (g === "nowg2" && S.grade === "○" && S.time === "now" && !S.status)
-      || (g === "work" && S.status === "work" && !S.grade && !S.time) || (g === "fresh" && S.status === "fresh" && !S.grade && !S.time));
+    const on = S.tab !== "dash" && !S.pick && !S.area.size && ((g === "nowg1" && sameSet(S.grade, ["◎"]) && sameSet(S.time, NOW_T) && !S.status.size)
+      || (g === "nowg2" && sameSet(S.grade, ["○"]) && sameSet(S.time, NOW_T) && !S.status.size)
+      || (g === "work" && sameSet(S.status, WORK) && !S.grade.size && !S.time.size) || (g === "fresh" && sameSet(S.status, ["fresh"]) && !S.grade.size && !S.time.size));
     b.setAttribute("aria-pressed", on); });
 }
 function switchTab(tab, keepSel) {
@@ -454,8 +491,9 @@ function openRow(r) { S.pick = null; resetFilters(); switchTab(isCand(r) ? "cand
 // 件数カードを押すと、その条件の一覧を開く（全件と今回の新着・更新は全件タブ、それ以外は候補タブ）
 document.querySelector(".stats").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (!b) return;
   const go = b.dataset.go; S.pick = null; resetFilters();
-  if (go === "nowg1" || go === "nowg2") { S.grade = go === "nowg1" ? "◎" : "○"; S.time = "now"; }
-  else S.status = go; // work / fresh
+  if (go === "nowg1" || go === "nowg2") { S.grade.add(go === "nowg1" ? "◎" : "○"); NOW_T.forEach((t) => S.time.add(t)); }
+  else if (go === "work") WORK.forEach((t) => S.status.add(t));
+  else S.status.add("fresh");
   switchTab(go === "fresh" ? "all" : "cand");
   $("view-board").scrollIntoView({ block: "start" }); });
 $("rows").addEventListener("click", (e) => { if (e.target.closest(".selbox")) return; const b = e.target.closest(".row"); if (b) { S.sel = b.dataset.url; const y = $("rows").scrollTop; render(); $("rows").scrollTop = y; } });
@@ -473,12 +511,12 @@ function filtered() {
   rows = [...rows].sort((a, b) => (TM_ORDER[timingOf(a)] - TM_ORDER[timingOf(b)]) || ((a.grade === "◎" ? 0 : a.grade === "○" ? 1 : 2) - (b.grade === "◎" ? 0 : b.grade === "○" ? 1 : 2)) || b.date.localeCompare(a.date));
   if (S.pick) rows = rows.filter((r) => S.pick.urls.has(r.url));
   if (S.q) { const q = S.q.toLowerCase(); rows = rows.filter((r) => [r.name, r.biz, r.area, r.idea, r.title].join(" ").toLowerCase().includes(q)); }
-  if (S.grade === "cand") rows = rows.filter(isCand); else if (S.grade === "none") rows = rows.filter((r) => !isCand(r)); else if (S.grade) rows = rows.filter((r) => r.grade === S.grade);
-  if (S.time === "now") rows = rows.filter(isNow); else if (S.time) rows = rows.filter((r) => timingOf(r) === S.time);
-  if (S.area) rows = rows.filter((r) => areasOf(r).includes(S.area));
-  if (S.status === "work") rows = rows.filter((r) => WORK.includes(r.status));
-  else if (S.status === "fresh") { const la = latestAdded(); rows = rows.filter((r) => !!freshOf(r, la)); }
-  else if (S.status) rows = rows.filter((r) => (r.status || "未着手") === S.status);
+  if (S.grade.size) rows = rows.filter((r) => S.grade.has(isCand(r) ? r.grade : "none"));
+  if (S.time.size) rows = rows.filter((r) => S.time.has(timingOf(r)));
+  if (S.area.size) rows = rows.filter((r) => areasOf(r).some((a) => S.area.has(a)));
+  if (S.status.has("fresh")) { const la = latestAdded(); rows = rows.filter((r) => !!freshOf(r, la)); }
+  const sts = [...S.status].filter((x) => x !== "fresh");
+  if (sts.length) rows = rows.filter((r) => sts.includes(r.status || "未着手"));
   return rows;
 }
 function render() {
