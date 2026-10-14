@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>アイテック阪急阪神 ソーシングボード</title>
+<title>ソーシングボード</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -252,21 +252,21 @@ nav.tabs .n { font-family: var(--mono); font-size: 11.5px; color: var(--side-mut
 .gate .msg { color: var(--maroon); min-height: 1.2em; }
 </style></head><body>
 <div class="gate" id="gate" hidden><form id="gateform" autocomplete="off">
-  <h2>アイテック阪急阪神 ソーシングボード</h2>
+  <h2 id="gate-title">ソーシングボード</h2>
   <p>閲覧用の合言葉を入れてください（このブラウザに保存されます）</p>
   <input id="viewkey" type="password" aria-label="閲覧用の合言葉" placeholder="閲覧用の合言葉">
   <button class="btn" type="submit">開く</button><p class="msg" id="gatemsg"></p></form></div>
 
 <div class="app">
 <aside class="sidenav">
-  <div class="logo"><small>アイテック阪急阪神</small><b>ソーシングボード</b></div>
+  <div class="logo"><small id="logo-org" hidden></small><b>ソーシングボード</b></div>
   <nav class="tabs" role="tablist" aria-label="画面の切り替え">
     <button role="tab" aria-selected="true" data-tab="dash"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>ダッシュボード</span><span></span></button>
-    <button role="tab" aria-selected="false" data-tab="cand"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/></svg><span>アイテック候補</span><span class="n" id="n-cand"></span></button>
+    <button role="tab" aria-selected="false" data-tab="cand"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/></svg><span id="tab-cand-label">候補</span><span class="n" id="n-cand"></span></button>
     <button role="tab" aria-selected="false" data-tab="all"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>全件（広め）</span><span class="n" id="n-all"></span></button>
     <button role="tab" aria-selected="false" data-tab="sel"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12l3 3 5-6"/></svg><span>選んだ会社</span><span class="n" id="n-sel"></span></button>
   </nav>
-  <p class="foot">資金調達の発表を広めに集め、アイテック阪急阪神の基準で絞っています。データはスプレッドシートに保存されます。</p>
+  <p class="foot" id="foot-note">資金調達の発表を広めに集め、協業・出資の基準で絞っています。データはスプレッドシートに保存されます。</p>
 </aside>
 <div class="wrap">
   <header class="top">
@@ -329,9 +329,9 @@ const AREAS = [
 const S = { tab: "dash", pick: null, q: "", grade: new Set(), time: new Set(), area: new Set(), status: new Set(), sel: null };
 // 声かけの時期（前回の調達日とラウンドから計算）。表示は短く、意味は title と凡例で補う
 const TIMINGS = [["ラウンド継続中", "tm-now", "1stクローズ・追加調達などの発表から4ヶ月以内。検討期間（1〜2ヶ月）を見込んでもまだ間に合う"],
-  ["次の調達が近い", "tm-next", "次のラウンドまでの標準的な期間の2ヶ月前から（シード・プレA 10〜22ヶ月／A 14〜26ヶ月／B・C 12〜25ヶ月）。アイテックの検討期間1〜2ヶ月を見込んだ"],
+  ["次の調達が近い", "tm-next", "次のラウンドまでの標準的な期間の2ヶ月前から（シード・プレA 10〜22ヶ月／A 14〜26ヶ月／B・C 12〜25ヶ月）。検討期間1〜2ヶ月を見込んだ"],
   ["調達直後", "tm-collab", "調達から1年以内。出資より先に業務提携から入る"], ["時期未定", "tm-wait", "目安の期間を過ぎた、またはラウンドが分からない"]];
-// 次の調達の相場を、アイテックの検討期間1〜2ヶ月ぶん早めた窓
+// 次の調達の相場を、検討期間1〜2ヶ月ぶん早めた窓
 const WIN = { "プレシード": [10, 22], "シード": [10, 22], "プレシリーズA": [10, 22], "シリーズA": [14, 26], "シリーズB": [12, 25], "シリーズC": [12, 25] };
 const TODAY = new Date();
 function timingOf(r) {
@@ -359,8 +359,23 @@ const key = () => $("key").value.trim();
 try { $("key").value = localStorage.getItem("itec-key") || ""; } catch (e) {}
 $("key").addEventListener("change", () => { try { localStorage.setItem("itec-key", key()); } catch (e) {} });
 
+// 画面に出す相手先の名前は、データと一緒に受け取って当てる（公開している画面のファイルには名前を置かない）
+let BRAND = { org: "", short: "", board: "ソーシングボード", idea: "組み方（仮説）", file: "ソーシングボード" };
+function applyBrand(b) {
+  if (b && b.org) { const s = b.short || b.org;
+    BRAND = { org: b.org, short: s, board: b.board || "ソーシングボード", idea: s + "との組み方（仮説）", file: b.file || b.org }; }
+  const full = BRAND.org ? BRAND.org + " " + BRAND.board : BRAND.board;
+  document.title = full;
+  $("gate-title").textContent = full;
+  const lo = $("logo-org"); lo.textContent = BRAND.org; lo.hidden = !BRAND.org;
+  $("foot-note").textContent = "資金調達の発表を広めに集め、" + (BRAND.org ? BRAND.org + "の" : "協業・出資の") + "基準で絞っています。データはスプレッドシートに保存されます。";
+  PAGES.cand = [BRAND.short + "候補", (BRAND.short ? BRAND.short + "の" : "") + "基準で◎・○を付けた会社"];
+  $("tab-cand-label").textContent = PAGES.cand[0];
+  if (S.tab === "cand") { $("page-title").textContent = PAGES.cand[0]; $("page-sub").textContent = PAGES.cand[1]; }
+}
+
 // データはGAS（スプレッドシート）から読む。閲覧には閲覧用の合言葉、操作には操作用の合言葉が要る
-const API = "https://script.google.com/macros/s/AKfycbx3Ab0rt-txHzZM6vThk9jEUdIb-20e05QLeHSTQQD8suNfNG-STKrRBGSCBSMJLw/exec";
+const API = "https://script.google.com/macros/s/AKfycbx3Ab0rt-txHzZM6vThk9jEUdIb-20e05QLeHSTQQD8suNfNG-STKrRBGSCBSMJLw/exec"; // scripts/publish_web.sh が owner.env の値に置き換える
 const viewKey = () => { try { return localStorage.getItem("itec-view") || ""; } catch (e) { return ""; } };
 async function apiGet(params) { const r = await fetch(API + "?" + new URLSearchParams(params)); return r.json(); }
 async function call(ui, extra) {
@@ -379,7 +394,7 @@ function load() {
       try { localStorage.removeItem("itec-view"); } catch (e) {}
       $("gate").hidden = false; $("gatemsg").textContent = res.error === "view" ? "合言葉が違います" : res.error; return;
     }
-    $("gate").hidden = true;
+    $("gate").hidden = true; applyBrand(res.brand);
     DATA.all = res.rows.sort((a, b) => b.date.localeCompare(a.date)); RUN = res.run; summary(); renderRun(); render(); dash();
   }).catch((e) => { $("runmsg").textContent = "読み込めませんでした：" + e.message; $("runmsg").className = "msg err"; });
 }
@@ -465,7 +480,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePops(
 const resetFilters = () => { MSEL.forEach(([, k]) => S[k].clear()); };
 const sameSet = (set, arr) => set.size === arr.length && arr.every((x) => set.has(x));
 const PAGES = { dash: ["ダッシュボード", "誰に・いつ声をかけるか"],
-  cand: ["アイテック候補", "アイテックの基準で◎・○を付けた会社"],
+  cand: ["候補", "基準で◎・○を付けた会社"],
   all: ["全件（広め）", "集めた資金調達の発表すべて（判定なしを含む）"],
   sel: ["選んだ会社", "チェックを付けた会社。Excelに出力できます（選択はこのブラウザに保存）"] };
 function markStats() {
@@ -541,7 +556,7 @@ function detail(r) {
   const tags = [tmPill(r), isCand(r) ? `<span class="tag ${r.grade === "◎" ? "g1" : ""}">${r.grade === "◎" ? "◎ 既存事業に直結" : "○ 中計の方向に合う"}</span>` : (r.grade ? `<span class="tag">${esc(r.grade)}</span>` : ""),
     ...areasOf(r).map((a) => `<span class="tag">${esc(a)}</span>`)].join("");
   el.innerHTML = `<div class="dhead"><h2>${esc(r.name)}</h2><button class="btn ghost sm" id="seltoggle">${SEL.has(r.url) ? "選択を外す" : "この会社を選ぶ"}</button></div>${tags ? `<div class="tags">${tags}</div>` : ""}
-    ${r.idea ? `<div class="idea"><b>アイテックとの組み方（仮説）</b>${esc(r.idea)}</div>` : ""}
+    ${r.idea ? `<div class="idea"><b>${esc(BRAND.idea)}</b>${esc(r.idea)}</div>` : ""}
     ${r.news ? `<div class="news"><b>最近の動き${r.checked ? `（確認 ${esc(r.checked)}）` : ""}</b><p>${esc(String(r.news).replace(/^\d{4}-\d{2}-\d{2} /, ""))}</p></div>` : ""}
     <dl class="kv"><dt>事業概要</dt><dd>${esc(r.biz)}</dd>${r.area ? `<dt>該当領域</dt><dd>${esc(r.area)}</dd>` : ""}${r.loc ? `<dt>所在地</dt><dd>${esc(r.loc)}</dd>` : ""}
       <dt>調達の発表日</dt><dd class="num">${esc(r.date)}</dd><dt>ラウンド</dt><dd>${esc(r.round || "記載なし")}</dd>
@@ -582,7 +597,7 @@ function updSel() {
 function exportXlsx(rows, label, msgEl) {
   if (!rows.length) { msgEl.textContent = "出力する会社がありません"; $("selbar").hidden = false; return; }
   if (typeof XLSX === "undefined") { msgEl.textContent = "Excel出力の部品を読み込めませんでした。再読み込みしてください"; return; }
-  const head = ["判定", "会社名", "事業概要", "所在地", "声をかける時期", "ラウンド", "調達額（億円）", "調達の発表日", "アイテックの該当領域", "組み方の仮説", "ステータス", "メモ", "最近の動き", "発表タイトル", "発表URL", "情報源"];
+  const head = ["判定", "会社名", "事業概要", "所在地", "声をかける時期", "ラウンド", "調達額（億円）", "調達の発表日", "該当領域", "組み方の仮説", "ステータス", "メモ", "最近の動き", "発表タイトル", "発表URL", "情報源"];
   const aoa = [head].concat(rows.map((r) => [r.grade, r.name, r.biz, r.loc, timingOf(r), r.round, r.amount === "" || isNaN(Number(r.amount)) ? r.amount : Number(r.amount),
     r.date, r.area, r.idea, r.status || "未着手", r.memo, r.news, r.title, r.url, r.src]));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -590,7 +605,7 @@ function exportXlsx(rows, label, msgEl) {
   ws["!autofilter"] = { ref: `A1:P${aoa.length}` };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 30));
   const d = new Date(), ds = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  XLSX.writeFile(wb, `アイテック阪急阪神_${label}_${ds}.xlsx`);
+  XLSX.writeFile(wb, `${BRAND.file}_${label}_${ds}.xlsx`);
   msgEl.textContent = `${rows.length}社をExcelに出力しました`;
 }
 
